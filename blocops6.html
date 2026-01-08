@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>BLOCKS OPS - Definitive Fix</title>
+    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v6.1.1/dist/aframe-extras.min.js"></script>
+    <style>
+        body { margin: 0; background: #000; overflow: hidden; font-family: 'Courier New', monospace; }
+        
+        /* INTERFAZ DEL MENÚ ORIGINAL */
+        #menu-inicio {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(0,0,0,0.8), rgba(0,0,0,0.8)), radial-gradient(circle, #333 0%, #000 100%);
+            display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 1000; color: white; text-align: center;
+        }
+        .title-container { border-top: 4px solid #f00; border-bottom: 4px solid #f00; padding: 20px 0; margin-bottom: 20px; width: 80%; max-width: 800px; }
+        #menu-inicio h1 { font-size: 80px; margin: 0; letter-spacing: 15px; color: #fff; text-shadow: 0 0 20px #f00; font-weight: 900; }
+        
+        .map-selector { display: flex; gap: 20px; margin: 20px 0; }
+        .map-card { border: 2px solid #444; padding: 15px; cursor: pointer; width: 160px; background: rgba(0,0,0,0.5); transition: 0.3s; }
+        .map-selected { border-color: #f00; background: rgba(255,0,0,0.2); box-shadow: 0 0 15px #f00; }
+
+        #btn-jugar {
+            background: #f00; border: none; color: white; padding: 15px 60px; font-size: 24px; cursor: pointer;
+            font-weight: bold; clip-path: polygon(10% 0, 100% 0, 90% 100%, 0 100%); margin-top: 20px;
+        }
+
+        /* HUD */
+        #crosshair { position: fixed; top: 50%; left: 50%; width: 16px; height: 16px; border: 2px solid #0f0; border-radius: 50%; transform: translate(-50%, -50%); z-index: 10; display: none; pointer-events: none; }
+        #hud { position: fixed; bottom: 85px; left: 20px; z-index: 10; display: none; }
+        .stat-box { background: rgba(0, 0, 0, 0.85); color: #0f0; padding: 12px 20px; margin-top: 5px; min-width: 200px; font-size: 18px; border-left: 5px solid #f00; text-transform: uppercase; }
+        #weapon-bar { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); display: none; gap: 10px; z-index: 100; }
+        .slot { padding: 12px 20px; background: rgba(10,10,10,0.9); color: #444; border: 2px solid #222; font-size: 14px; font-weight: bold; }
+        .active { color: #fff; border-color: #0f0; box-shadow: 0 0 10px #0f0; }
+    </style>
+  </head>
+  <body>
+
+    <div id="menu-inicio">
+        <div class="title-container"><h1>BLOCKS OPS</h1></div>
+        <p id="audio-msg" style="color: #0f0;">HAZ CLIC PARA CARGAR SISTEMAS</p>
+        <div class="map-selector">
+            <div id="map1" class="map-card" onclick="selectMap('almacen')">ALMACÉN</div>
+            <div id="map2" class="map-card map-selected" onclick="selectMap('ciudad')">CIUDAD</div>
+        </div>
+        <button id="btn-jugar" onclick="iniciarJuego()">INICIAR MISIÓN</button>
+    </div>
+
+    <div id="crosshair"></div>
+    <div id="hud">
+        <div class="stat-box">ESTADO: <span id="hp">100%</span></div>
+        <div class="stat-box">MUNICIÓN: <span id="ammo">30</span></div>
+        <div class="stat-box">BAJAS: <span id="score">0</span></div>
+    </div>
+
+    <div id="weapon-bar">
+        <div id="s1" class="slot active">1. AUG</div>
+        <div id="s2" class="slot">2. XM1014</div>
+        <div id="s3" class="slot">3. GLOCK 18</div>
+    </div>
+
+    <audio id="snd-aug" src="sound_weapons_aug_aug-1.wav" preload="auto"></audio>
+    <audio id="snd-xm" src="sound_weapons_xm1014_xm1014-1.wav" preload="auto"></audio>
+    <audio id="snd-glock" src="sound_weapons_glock18_glock18-1.wav" preload="auto"></audio>
+    <audio id="music-menu" src="Snapiyy audio - I am my perimeter.mp3" loop preload="auto"></audio>
+    <audio id="music-game" src="Don Aitor - Invasión zombi.mp3" loop preload="auto"></audio>
+
+    <a-scene loading-screen="enabled: false">
+      <a-sky id="sky" color="#87CEEB"></a-sky>
+      <a-light type="ambient" intensity="0.9"></a-light>
+      <a-light type="directional" position="-1 10 5" intensity="0.7"></a-light>
+
+      <a-entity id="rig" movement-controls="controls: keyboard; speed: 0.22">
+        <a-entity id="camera" camera look-controls="pointerLockEnabled: true" position="0 1.2 0">
+            <a-entity id="view-model" position="0.35 -0.35 -0.5">
+                <a-box position="0 0.1 0.2" width="0.1" height="0.1" depth="0.5" color="#ff0000" rotation="-10 0 0"></a-box>
+                <a-box position="-0.5 0.05 0.1" width="0.1" height="0.1" depth="0.4" color="#ff0000" rotation="0 40 0"></a-box>
+                
+                <a-entity id="gun-group">
+                    <a-entity id="model-1" visible="true"><a-box width="0.06" height="0.12" depth="0.9" color="#222"></a-box></a-entity>
+                    <a-entity id="model-2" visible="false"><a-box width="0.08" height="0.1" depth="1" color="#111"></a-box></a-entity>
+                    <a-entity id="model-3" visible="false"><a-box width="0.05" height="0.08" depth="0.3" color="#111" position="0 0.1 0.2"></a-box></a-entity>
+                </a-entity>
+                <a-light id="muzzle" type="point" intensity="0" color="orange" distance="3"></a-light>
+            </a-entity>
+        </a-entity>
+      </a-entity>
+
+      <a-entity id="world"></a-entity>
+    </a-scene>
+
+    <script>
+      let gameActive = false, score = 0, hp = 100, weapon = 1, selectedMap = 'ciudad';
+      let ammo = {1:30, 2:7, 3:12};
+      let audioReady = false;
+
+      // Desbloquear audio con el primer clic en el menú
+      document.body.addEventListener('mousedown', () => {
+          if(!audioReady) {
+              document.getElementById('music-menu').play();
+              document.getElementById('audio-msg').style.display = 'none';
+              audioReady = true;
+          }
+      });
+
+      function selectMap(m) {
+          selectedMap = m;
+          document.getElementById('map1').classList.toggle('map-selected', m==='almacen');
+          document.getElementById('map2').classList.toggle('map-selected', m==='ciudad');
+      }
+
+      function iniciarJuego() {
+          gameActive = true;
+          document.getElementById('menu-inicio').style.display = 'none';
+          document.getElementById('hud').style.display = 'block';
+          document.getElementById('weapon-bar').style.display = 'flex';
+          document.getElementById('crosshair').style.display = 'block';
+          
+          document.getElementById('music-menu').pause();
+          document.getElementById('music-game').play();
+          
+          buildMap();
+          spawnZombies();
+          document.body.requestPointerLock();
+      }
+
+      function buildMap() {
+          const w = document.getElementById('world');
+          const sky = document.getElementById('sky');
+          w.innerHTML = '';
+          
+          if(selectedMap === 'ciudad') {
+              sky.setAttribute('color', '#87CEEB');
+              w.innerHTML += `<a-plane rotation="-90 0 0" width="200" height="200" color="#333"></a-plane>`;
+              for(let i=0; i<30; i++) {
+                  let x = (Math.random()-0.5)*100, z = (Math.random()-0.5)*100;
+                  if(Math.abs(x) < 5) x += 10;
+                  w.innerHTML += `<a-box position="${x} 5 ${z}" width="6" height="10" depth="6" color="#555"></a-box>
+                                  <a-cylinder position="${x+4} 2 ${z+4}" radius="0.2" height="4" color="#3d2b1f"></a-cylinder>
+                                  <a-sphere position="${x+4} 4 ${z+4}" radius="1.2" color="green"></a-sphere>`;
+              }
+          } else {
+              sky.setAttribute('color', '#111');
+              w.innerHTML += `<a-plane rotation="-90 0 0" width="100" height="100" color="#1a1a1a"></a-plane>`;
+              for(let i=0; i<20; i++) {
+                  w.innerHTML += `<a-box position="${(Math.random()-0.5)*60} 1.5 ${(Math.random()-0.5)*60}" scale="3 3 3" color="#3d2b1f"></a-box>`;
+              }
+          }
+      }
+
+      window.addEventListener('mousedown', () => {
+          if(!gameActive || ammo[weapon] <= 0) return;
+          
+          const sounds = {1: 'snd-aug', 2: 'snd-xm', 3: 'snd-glock'};
+          let s = document.getElementById(sounds[weapon]);
+          s.currentTime = 0; s.play();
+
+          ammo[weapon]--;
+          document.getElementById('ammo').innerText = ammo[weapon];
+          
+          // Retroceso
+          const vm = document.getElementById('view-model');
+          vm.setAttribute('position', '0.35 -0.35 -0.45');
+          document.getElementById('muzzle').setAttribute('intensity', 4);
+          setTimeout(() => {
+              vm.setAttribute('position', '0.35 -0.35 -0.5');
+              document.getElementById('muzzle').setAttribute('intensity', 0);
+          }, 70);
+
+          // Raycast para impacto
+          const cam = document.getElementById('camera');
+          const ray = new THREE.Raycaster();
+          const p = new THREE.Vector3(), d = new THREE.Vector3();
+          cam.object3D.getWorldPosition(p); cam.object3D.getWorldDirection(d);
+          ray.set(p, d.negate());
+          const hits = ray.intersectObjects(document.querySelector('a-scene').object3D.children, true);
+          for(let h of hits) {
+              let t = h.object.el;
+              while(t && !t.hasAttribute('zombie')) t = t.parentElement;
+              if(t) { t.components.zombie.hit(); break; }
+          }
+      });
+
+      // BALANCEO REALISTA
+      let bob = 0;
+      setInterval(() => {
+          if(!gameActive) return;
+          bob += 0.15;
+          document.getElementById('camera').object3D.position.y = 1.2 + Math.sin(bob) * 0.02;
+      }, 50);
+
+      window.addEventListener('keydown', (e) => {
+          if(e.key === '1') switchW(1);
+          if(e.key === '2') switchW(2);
+          if(e.key === '3') switchW(3);
+      });
+
+      function switchW(id) {
+          weapon = id;
+          document.querySelectorAll('.slot').forEach(s => s.classList.remove('active'));
+          document.getElementById('s'+id).classList.add('active');
+          for(let i=1; i<=3; i++) document.getElementById('model-'+i).setAttribute('visible', i===id);
+          document.getElementById('ammo').innerText = ammo[weapon];
+      }
+
+      AFRAME.registerComponent('zombie', {
+          init: function() {
+              this.life = 4;
+              this.el.innerHTML = `<a-box position="0 0.8 0" width="0.5" height="1.4" depth="0.4" color="#d2b48c"></a-box>
+                                   <a-box position="0 1.6 0.1" width="0.3" height="0.4" depth="0.3" color="#d2b48c"></a-box>
+                                   <a-box position="0 1.5 0.25" width="0.2" height="0.15" depth="0.1" color="red"></a-box>`;
+          },
+          tick: function() {
+              if(!gameActive) return;
+              let target = document.getElementById('rig').getAttribute('position');
+              let pos = this.el.getAttribute('position');
+              let dx = target.x - pos.x, dz = target.z - pos.z, d = Math.sqrt(dx*dx+dz*dz);
+              if(d > 1.4) {
+                  pos.x += (dx/d)*0.04; pos.z += (dz/d)*0.04;
+                  this.el.setAttribute('position', pos);
+                  this.el.object3D.lookAt(target.x, 0.8, target.z);
+              } else {
+                  hp -= 0.15; document.getElementById('hp').innerText = Math.floor(hp) + "%";
+                  if(hp <= 0) location.reload();
+              }
+          },
+          hit: function() {
+              this.life--;
+              if(this.life <= 0) { score++; document.getElementById('score').innerText = score; this.el.remove(); }
+          }
+      });
+
+      function spawnZombies() {
+          if(!gameActive) return;
+          let z = document.createElement('a-entity');
+          let ang = Math.random()*6.28;
+          z.setAttribute('position', {x: Math.cos(ang)*28, y:0, z:Math.sin(ang)*28});
+          z.setAttribute('zombie', '');
+          document.querySelector('a-scene').appendChild(z);
+          setTimeout(spawnZombies, 3500);
+      }
+    </script>
+  </body>
+</html>
