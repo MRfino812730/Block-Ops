@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Blocks Ops - Ultimate Edition</title>
+    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v6.1.1/dist/aframe-extras.min.js"></script>
+    <style>
+        body { margin: 0; background: #000; overflow: hidden; font-family: 'Courier New', monospace; }
+        
+        #crosshair {
+            position: fixed; top: 50%; left: 50%;
+            width: 16px; height: 16px; border: 2px solid #0f0;
+            border-radius: 50%; transform: translate(-50%, -50%);
+            z-index: 10; pointer-events: none; display: none;
+        }
+
+        #hud {
+            position: fixed; bottom: 85px; left: 20px; z-index: 10;
+            display: none;
+        }
+        .stat-box {
+            background: rgba(0, 0, 0, 0.85); color: #0f0;
+            padding: 12px 20px; margin-top: 5px; min-width: 200px;
+            font-size: 18px; border-left: 5px solid #f00;
+            text-transform: uppercase; letter-spacing: 2px;
+        }
+
+        #weapon-bar {
+            position: fixed; bottom: 20px; left: 50%;
+            transform: translateX(-50%); display: none; gap: 15px; z-index: 100;
+        }
+        .slot {
+            padding: 12px 25px; background: rgba(10,10,10,0.9);
+            color: #444; border: 2px solid #222; font-size: 14px; font-weight: bold;
+        }
+        .active { color: #fff; border-color: #0f0; box-shadow: 0 0 15px rgba(0,255,0,0.5); }
+
+        #menu-inicio {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), 
+                        radial-gradient(circle, #444 0%, #000 100%);
+            display: flex; flex-direction: column; justify-content: center;
+            align-items: center; z-index: 1000; color: white; text-align: center;
+        }
+        .title-container { border-top: 5px solid #f00; border-bottom: 5px solid #f00; padding: 25px 50px; margin-bottom: 25px; }
+        #menu-inicio h1 { font-size: 85px; margin: 0; letter-spacing: 18px; text-shadow: 0 0 30px #f00; font-weight: 900; }
+        
+        #btn-jugar {
+            background: #f00; border: none; color: white; padding: 18px 70px;
+            font-size: 26px; cursor: pointer; font-family: 'Courier New', monospace; font-weight: bold;
+            transition: 0.3s; clip-path: polygon(10% 0, 100% 0, 90% 100%, 0 100%);
+        }
+        #btn-jugar:hover { background: #fff; color: #000; box-shadow: 0 0 40px #fff; transform: scale(1.05); }
+    </style>
+  </head>
+  <body>
+
+    <div id="menu-inicio">
+        <div class="title-container"><h1>BLOCKS OPS</h1></div>
+        <p style="color: #f00; letter-spacing: 6px; font-weight: bold; margin-bottom: 30px;">ZOMBIE WAREHOUSE PROTOCOL v2.0</p>
+        <button id="btn-jugar" onclick="iniciarJuego()">INICIAR OPERACIÓN</button>
+        <div style="margin-top: 50px; font-size: 13px; color: #666;">W-A-S-D: MOVER | R: RECARGAR | 1-2: ARMAS | CLICK: FUEGO</div>
+    </div>
+
+    <div id="crosshair"></div>
+    <div id="hud">
+        <div class="stat-box">ESTADO: <span id="hp">100%</span></div>
+        <div class="stat-box">MUNICIÓN: <span id="ammo">7</span></div>
+        <div class="stat-box">BAJAS: <span id="score">0</span></div>
+    </div>
+
+    <div id="weapon-bar">
+        <div id="s1" class="slot active">01. ESCOPETA</div>
+        <div id="s2" class="slot">02. PISTOLA</div>
+    </div>
+
+    <a-scene fog="type: exponential; color: #000; density: 0.14" loading-screen="enabled: false">
+      <a-assets>
+          <canvas id="grid" width="64" height="64"></canvas>
+      </a-assets>
+
+      <a-light type="ambient" color="#111"></a-light>
+      <a-sky color="#000"></a-sky>
+      
+      <a-plane rotation="-90 0 0" width="100" height="100" color="#111" material="roughness: 1; metalness: 0"></a-plane>
+
+      <a-box position="-5 1 -8" width="2" height="2" depth="2" color="#3d2b1f"></a-box>
+      <a-box position="6 1.5 -12" width="3" height="3" depth="3" color="#222"></a-box>
+      <a-box position="-10 1 -5" width="2" height="2" depth="2" color="#3d2b1f" rotation="0 45 0"></a-box>
+      
+      <a-entity position="0 8 0">
+          <a-light type="spot" color="#ffaa44" intensity="1.5" angle="60" distance="20" rotation="-90 0 0"></a-light>
+          <a-cylinder radius="0.4" height="0.1" color="#444"></a-cylinder>
+      </a-entity>
+
+      <a-entity id="rig" movement-controls="controls: keyboard; speed: 0.18">
+        <a-entity id="camera" camera look-controls="pointerLockEnabled: true" position="0 1.6 0">
+            <a-entity id="weapon-holder" position="0.4 -0.4 -0.6">
+                <a-light id="flashlight" type="spot" color="#fff" intensity="18" angle="30" penumbra="0.6" distance="45"></a-light>
+                
+                <a-entity id="shotgun-model" visible="true">
+                    <a-box width="0.08" height="0.1" depth="0.8" color="#111"></a-box>
+                    <a-box width="0.06" height="0.06" depth="0.5" color="#222" position="0 0.04 -0.4"></a-box>
+                </a-entity>
+
+                <a-entity id="pistol-model" visible="false">
+                    <a-box width="0.05" height="0.09" depth="0.25" color="#111"></a-box>
+                    <a-box width="0.04" height="0.04" depth="0.2" color="#333" position="0 0.03 -0.1"></a-box>
+                </a-entity>
+
+                <a-light id="muzzle-flash" type="point" intensity="0" color="orange" distance="5"></a-light>
+            </a-entity>
+        </a-entity>
+      </a-entity>
+    </a-scene>
+
+    <script>
+      let gameActive = false, hp = 100, score = 0, weapon = 1;
+      let ammo = { 1: 7, 2: 12 }, maxAmmo = { 1: 7, 2: 12 };
+      let audioCtx;
+      const scene = document.querySelector('a-scene');
+
+      function iniciarJuego() {
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          document.getElementById('menu-inicio').style.display = 'none';
+          document.getElementById('crosshair').style.display = 'block';
+          document.getElementById('hud').style.display = 'block';
+          document.getElementById('weapon-bar').style.display = 'flex';
+          document.body.requestPointerLock();
+          gameActive = true;
+      }
+
+      function playBitSound(freq, duration, vol) {
+          if(!audioCtx) return;
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = weapon === 1 ? 'sawtooth' : 'square';
+          osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+          osc.start();
+          osc.stop(audioCtx.currentTime + duration);
+      }
+
+      // EFECTO DE IMPACTO (SANGRE DE BLOQUES)
+      function spawnBlood(pos) {
+          for(let i=0; i<5; i++) {
+              let p = document.createElement('a-box');
+              p.setAttribute('width', '0.1'); p.setAttribute('height', '0.1'); p.setAttribute('depth', '0.1');
+              p.setAttribute('color', '#f00');
+              p.setAttribute('position', pos);
+              scene.appendChild(p);
+              
+              // Animación de dispersión
+              let dest = {
+                  x: pos.x + (Math.random()-0.5)*2,
+                  y: pos.y + (Math.random()-0.5)*2,
+                  z: pos.z + (Math.random()-0.5)*2
+              };
+              p.setAttribute('animation', `property: position; to: ${dest.x} ${dest.y} ${dest.z}; dur: 400; easing: easeOutQuad`);
+              p.setAttribute('animation__2', `property: opacity; to: 0; dur: 400; delay: 100`);
+              setTimeout(() => p.remove(), 400);
+          }
+      }
+
+      window.addEventListener('mousedown', () => {
+          if(!gameActive || ammo[weapon] <= 0) return;
+          
+          ammo[weapon]--;
+          updateHUD();
+          if(weapon === 1) playBitSound(70, 0.35, 0.5);
+          else playBitSound(250, 0.15, 0.3);
+
+          const wh = document.getElementById('weapon-holder');
+          wh.setAttribute('position', '0.4 -0.4 -0.55');
+          document.getElementById('muzzle-flash').setAttribute('intensity', 8);
+          setTimeout(() => { 
+              wh.setAttribute('position', '0.4 -0.4 -0.6'); 
+              document.getElementById('muzzle-flash').setAttribute('intensity', 0); 
+          }, 60);
+
+          const cam = document.getElementById('camera');
+          const raycaster = new THREE.Raycaster();
+          const camPos = new THREE.Vector3(), camDir = new THREE.Vector3();
+          cam.object3D.getWorldPosition(camPos);
+          cam.object3D.getWorldDirection(camDir);
+          raycaster.set(camPos, camDir.negate());
+
+          const hits = raycaster.intersectObjects(scene.object3D.children, true);
+          for(let hit of hits) {
+              let obj = hit.object.el;
+              while(obj && !obj.hasAttribute('zombie')) obj = obj.parentElement;
+              if(obj) { 
+                  spawnBlood(hit.point);
+                  obj.components.zombie.hit(weapon === 1 ? 3 : 1); 
+                  break; 
+              }
+          }
+      });
+
+      window.addEventListener('keydown', (e) => {
+          if(e.key === 'r' || e.key === 'R') {
+              document.getElementById('ammo').innerText = "RECARGANDO...";
+              playBitSound(150, 0.5, 0.1);
+              setTimeout(() => { ammo[weapon] = maxAmmo[weapon]; updateHUD(); }, 1000);
+          }
+          if(e.key === '1') switchWeapon(1);
+          if(e.key === '2') switchWeapon(2);
+      });
+
+      function switchWeapon(id) {
+          weapon = id;
+          document.querySelectorAll('.slot').forEach(s => s.classList.remove('active'));
+          document.getElementById('s' + id).classList.add('active');
+          document.getElementById('shotgun-model').setAttribute('visible', id === 1);
+          document.getElementById('pistol-model').setAttribute('visible', id === 2);
+          updateHUD();
+      }
+
+      function updateHUD() {
+          document.getElementById('hp').innerText = Math.max(0, Math.floor(hp)) + "%";
+          document.getElementById('ammo').innerText = ammo[weapon];
+          document.getElementById('score').innerText = score;
+      }
+
+      AFRAME.registerComponent('zombie', {
+          init: function() {
+              this.life = 3;
+              this.el.innerHTML = `
+                <a-box width="0.6" height="1.6" depth="0.3" color="#1a2b1a"></a-box>
+                <a-box position="0 0.9 0" width="0.35" height="0.35" depth="0.35" color="#2a3b2a"></a-box>
+                <a-box position="0.3 0.4 -0.4" width="0.15" height="0.15" depth="0.7" color="#1a2b1a" rotation="-20 0 0"></a-box>
+                <a-box position="-0.3 0.4 -0.4" width="0.15" height="0.15" depth="0.7" color="#1a2b1a" rotation="-20 0 0"></a-box>
+              `;
+          },
+          hit: function(dmg) {
+              this.life -= dmg;
+              if(this.life <= 0) { score++; updateHUD(); this.el.remove(); }
+          },
+          tick: function() {
+              if(!gameActive || hp <= 0) return;
+              const target = document.getElementById('rig').getAttribute('position');
+              const pos = this.el.getAttribute('position');
+              let dx = target.x - pos.x, dz = target.z - pos.z, d = Math.sqrt(dx*dx + dz*dz);
+              if(d > 1.4) {
+                  let speed = 0.045 + (score * 0.001); // Zombies más rápidos cada vez
+                  pos.x += (dx/d)*speed; pos.z += (dz/d)*speed;
+                  this.el.setAttribute('position', pos);
+                  this.el.object3D.lookAt(target.x, 0.8, target.z);
+              } else {
+                  hp -= 0.15; updateHUD();
+                  if(hp <= 0) { 
+                      alert("MISIÓN FALLIDA. BAJAS TOTALES: " + score);
+                      location.reload(); 
+                  }
+              }
+          }
+      });
+
+      // Aparición de Zombies (Frecuencia aumenta con la puntuación)
+      function spawnManager() {
+          if(gameActive && hp > 0) {
+              let z = document.createElement('a-entity');
+              let ang = Math.random() * 6.28;
+              z.setAttribute('position', {x: Math.cos(ang)*30, y: 0.8, z: Math.sin(ang)*30});
+              z.setAttribute('zombie', '');
+              scene.appendChild(z);
+          }
+          let nextSpawn = Math.max(1000, 3000 - (score * 50));
+          setTimeout(spawnManager, nextSpawn);
+      }
+      spawnManager();
+    </script>
+  </body>
+</html>
